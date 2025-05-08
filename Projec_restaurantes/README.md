@@ -1,78 +1,65 @@
 
-# API de Restaurantes
+Pensado durante un segundo
 
-API REST para la gestión de restaurantes, menús, reseñas y recomendaciones.
 
-## Características
+**API de Restaurantes**
 
-- Gestión de usuarios (registro, autenticación)
-- CRUD de restaurantes
-- Gestión de menús por restaurante
-- Sistema de reseñas y calificaciones
-- Sistema de recomendaciones
-- Filtrado por categoría, ubicación y precio
+ **Características principales**
 
-## Tecnologías
+   1. Gestión de usuarios
 
-- Node.js
-- Express
-- MySQL
-- EJS (para las vistas)
-- JWT (autenticación)
+   2. CRUD de restaurantes
 
-## Estructura del Proyecto
+   3. Administración de menús
 
-```
-├── config/         # Configuración de la base de datos
-├── controllers/    # Controladores de la aplicación
-├── middlewares/   # Middlewares personalizados
-├── models/        # Modelos de datos
-├── public/        # Archivos estáticos
-├── routes/        # Rutas de la API
-├── utils/         # Utilidades y helpers
-└── views/         # Vistas EJS
-```
+   4. Sistema de reseñas y calificaciones
 
-## Instalación
+   5. Recomendaciones personalizadas
 
-1. Clonar el repositorio
-2. Instalar dependencias: `npm install`
-3. Configurar variables de entorno en `.env`:
-   ```
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASSWORD=
-   DB_NAME=restaurantes_db
-   JWT_SECRET=tu_secreto
-   ```
-4. Iniciar el servidor: `npm start`
+      
 
-## Endpoints de la API
+ **Tecnologías usadas**
 
-### Autenticación
-- POST /api/auth/register - Registro de usuario
-- POST /api/auth/login - Inicio de sesión
+   1. **Node.js** + **Express** para el servidor
+   2. **MySQL** como base de datos relacional
+   3. **EJS** para renderizar vistas (aunque la mayor parte es API)
+   4. **JWT** para el manejo seguro de sesiones
+   5. Estructura basada en MVC para mantener todo ordenado
 
-### Restaurantes
-- GET /api/restaurantes - Listar restaurantes
-- POST /api/restaurantes - Crear restaurante
-- PUT /api/restaurantes/:id - Actualizar restaurante
-- DELETE /api/restaurantes/:id - Eliminar restaurante
 
-### Menús
-- GET /api/menus/restaurante/:id - Obtener menús por restaurante
-- POST /api/menus - Crear menú
-- PUT /api/menus/:id - Actualizar menú
-- DELETE /api/menus/:id - Eliminar menú
+   **Cómo arrancar el proyecto**
 
-### Reseñas
-- GET /api/resenas/restaurante/:id - Obtener reseñas por restaurante
-- POST /api/resenas - Crear reseña
+   1. **Clona este repositorio**
 
-### Recomendaciones
-- GET /api/recomendaciones - Obtener recomendaciones
-- POST /api/recomendaciones - Crear recomendación
 
-## Licencia
+      git clone https://github.com/Brayan1299/Restaurantes_API.git
+      cd Restaurantes_API/Projec_restaurantes
+      
 
-MIT
+   2. **Instala dependencias**
+
+
+      npm install
+
+
+   3. **Configura tus variables de entorno**
+      Crea un archivo `.env` en la raíz con estos datos (ajústalos a tu entorno):
+
+
+      DB_HOST=localhost
+      DB_USER=root
+      DB_PASSWORD=
+      DB_NAME=restaurantes_db
+      JWT_SECRET=tu_secreto
+
+
+   4. **Inicia el servidor**
+
+      npm start
+
+      Por defecto quedará en `http://localhost:3000`.
+
+
+   **Licencia**
+
+   MIT – Puedes usarlo libremente si te sirve.
