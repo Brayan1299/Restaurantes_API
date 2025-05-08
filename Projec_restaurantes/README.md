@@ -1,7 +1,3 @@
-
-Pensado durante un segundo
-
-
 **API de Restaurantes**
 
  **Características principales**
@@ -17,7 +13,6 @@ Pensado durante un segundo
    5. Recomendaciones personalizadas
 
       
-
  **Tecnologías usadas**
 
    1. **Node.js** + **Express** para el servidor
