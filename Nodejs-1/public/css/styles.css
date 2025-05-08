@@ -1,0 +1,128 @@
+
+/* Variables de colores para restaurantes */
+:root {
+  --primary-color: #ff6b6b;
+  --primary-dark: #ee5253;
+  --secondary-color: #4ecdc4;
+  --accent-color: #ffe66d;
+  --danger-color: #ff4757;
+  --light-bg: #f7f7f7;
+  --dark-text: #2d3436;
+  --light-text: #ffffff;
+}
+
+/* Estilos generales */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--dark-text);
+  background-color: var(--light-bg);
+  margin: 0;
+  padding: 20px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 15px;
+}
+
+/* Estilos para restaurantes */
+.restaurante-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.restaurante-nombre {
+  color: var(--primary-color);
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.restaurante-info {
+  color: var(--dark-text);
+  margin-bottom: 15px;
+}
+
+/* Estilos para menús */
+.menu-item {
+  border-left: 3px solid var(--secondary-color);
+  padding-left: 15px;
+  margin-bottom: 15px;
+}
+
+/* Estilos para reseñas */
+.resena {
+  background: rgba(78, 205, 196, 0.1);
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+}
+
+/* Botones */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 1050;
+}
+
+.modal-dialog {
+  margin: 1.75rem auto;
+  max-width: 500px;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  padding: 1rem;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body {
+  padding: 1rem;
+}
+
+.close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.precio {
+  color: var(--primary-color);
+  font-weight: bold;
+  font-size: 1.2em;
+}
+}
