@@ -1,87 +1,150 @@
-CREATE TABLE IF NOT EXISTS usuarios (
+
+CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    role ENUM('user', 'admin') DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS restaurantes (
+CREATE TABLE IF NOT EXISTS restaurants (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL,
-    descripcion TEXT,
-    tipo_cocina VARCHAR(100) NOT NULL,
-    direccion VARCHAR(500) NOT NULL,
-    ciudad VARCHAR(100) NOT NULL,
-    rango_precio ENUM('$', '$$', '$$$', '$$$$') NOT NULL,
-    telefono VARCHAR(20),
-    email VARCHAR(255),
-    sitio_web VARCHAR(255),
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    cuisine_type VARCHAR(50) NOT NULL,
+    location VARCHAR(100) NOT NULL,
+    city VARCHAR(50) NOT NULL,
+    price_range ENUM('$', '$$', '$$$', '$$$$') NOT NULL,
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    website VARCHAR(200),
+    image_url VARCHAR(500),
+    average_rating DECIMAL(2,1) DEFAULT 0,
+    total_reviews INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS resenas (
+CREATE TABLE IF NOT EXISTS reviews (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    usuario_id INT,
-    restaurante_id INT,
+    user_id INT NOT NULL,
+    restaurant_id INT NOT NULL,
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comentario TEXT,
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-    FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_restaurant (user_id, restaurant_id)
 );
 
 CREATE TABLE IF NOT EXISTS menus (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    restaurante_id INT,
-    nombre VARCHAR(255) NOT NULL,
-    descripcion TEXT,
-    precio DECIMAL(10,2) NOT NULL,
-    categoria VARCHAR(100),
-    disponible BOOLEAN DEFAULT TRUE,
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+    restaurant_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    image_url VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS tickets (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    usuario_id INT,
-    restaurante_id INT,
-    codigo VARCHAR(100) UNIQUE NOT NULL,
-    estado ENUM('activo', 'usado', 'expirado') DEFAULT 'activo',
-    fecha_compra TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_expiracion TIMESTAMP,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-    FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+    user_id INT NOT NULL,
+    restaurant_id INT NOT NULL,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    qr_code TEXT,
+    amount DECIMAL(10,2) NOT NULL,
+    status ENUM('pending', 'paid', 'used', 'expired') DEFAULT 'pending',
+    payment_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
 
-INSERT IGNORE INTO usuarios (nombre, email, password) VALUES
-('Brayan Admin', 'brayan@restaurante.com', '$2b$10$mF8WPgLHxHzlrCpHjPJ.EuG6DGqKw2wOkJyA.kIJ3QOzf1XtJVLaC'),
-('Brayan Prueba', 'brayanpru@restaurante.com', '$2b$10$mF8WPgLHxHzlrCpHjPJ.EuG6DGqKw2wOkJyA.kIJ3QOzf1XtJVLaC');
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    cuisine_type VARCHAR(50) NOT NULL,
+    preference_score DECIMAL(3,2) DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_cuisine (user_id, cuisine_type)
+);
 
-INSERT IGNORE INTO restaurantes (nombre, descripcion, tipo_cocina, direccion, ciudad, rango_precio, telefono, email) VALUES
-('Brabus Gourmet', 'Restaurante de alta cocina con los mejores ingredientes', 'Internacional', 'Av. Principal 123', 'Bogotá', '$$$$', '1234567890', 'info@brabusgourmet.com'),
-('Pizza Roma', 'Auténtica pizza italiana en horno de leña', 'Italiana', 'Calle 45 #23-12', 'Medellín', '$$', '0987654321', 'pizza@roma.com'),
-('Sushi Tokyo', 'Experiencia japonesa tradicional', 'Japonesa', 'Carrera 15 #67-89', 'Cali', '$$$', '1122334455', 'sushi@tokyo.com'),
-('Taco Mexicano', 'Los mejores tacos mexicanos', 'Mexicana', 'Calle 12 #34-56', 'Barranquilla', '$', '5566778899', 'tacos@mexicano.com'),
-('Burger House', 'Hamburguesas gourmet artesanales', 'Americana', 'Av. Santander 789', 'Cartagena', '$$', '3344556677', 'burger@house.com');
+INSERT IGNORE INTO users (name, email, password, role) VALUES 
+('Brayan Admin', 'brayan@restaurante.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
+('Brayan User', 'brayanpru@restaurante.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'user');
 
-INSERT IGNORE INTO resenas (usuario_id, restaurante_id, rating, comentario) VALUES
-(1, 1, 5, 'Excelente comida y servicio impecable'),
-(2, 1, 4, 'Muy buena experiencia, recomendado'),
-(1, 2, 4, 'La pizza estaba deliciosa'),
-(2, 3, 5, 'El mejor sushi de la ciudad'),
-(1, 4, 3, 'Buenos tacos pero el servicio podría mejorar'),
-(2, 5, 4, 'Hamburguesas muy sabrosas');
+INSERT IGNORE INTO restaurants (name, description, cuisine_type, location, city, price_range, phone, email) VALUES 
+('La Bella Italia', 'Auténtica comida italiana en el corazón de la ciudad', 'Italiana', 'Centro Histórico', 'Bogotá', '$$$', '123-456-7890', 'info@bellaitalia.com'),
+('Sushi Zen', 'Experiencia japonesa única con los mejores ingredientes', 'Japonesa', 'Zona Rosa', 'Bogotá', '$$$$', '123-456-7891', 'info@sushizen.com'),
+('Tacos El Primo', 'Los mejores tacos mexicanos de la ciudad', 'Mexicana', 'Chapinero', 'Bogotá', '$', '123-456-7892', 'info@tacoselprimo.com'),
+('Burger Palace', 'Hamburguesas gourmet para todos los gustos', 'Americana', 'Zona T', 'Bogotá', '$$', '123-456-7893', 'info@burgerpalace.com'),
+('Mariscos del Pacífico', 'Frescos mariscos del océano Pacífico', 'Mariscos', 'La Candelaria', 'Bogotá', '$$$', '123-456-7894', 'info@mariscospacifico.com');
 
-INSERT IGNORE INTO menus (restaurante_id, nombre, descripcion, precio, categoria) VALUES
-(1, 'Filete Wellington', 'Filete de res envuelto en hojaldre con champiñones', 45000, 'Platos Principales'),
-(1, 'Risotto de Mariscos', 'Cremoso risotto con camarones y calamares', 38000, 'Platos Principales'),
-(2, 'Pizza Margherita', 'Tomate, mozzarella y albahaca fresca', 25000, 'Pizzas'),
-(2, 'Pizza Pepperoni', 'Pepperoni y mozzarella en salsa de tomate', 28000, 'Pizzas'),
-(3, 'Sashimi Variado', 'Selección de pescados frescos', 35000, 'Sashimi'),
-(3, 'Roll California', 'Aguacate, pepino y cangrejo', 18000, 'Rolls'),
-(4, 'Tacos al Pastor', 'Carne de cerdo marinada con piña', 15000, 'Tacos'),
-(4, 'Quesadillas', 'Tortilla con queso y pollo', 12000, 'Antojitos'),
-(5, 'Burger Clásica', 'Carne, lechuga, tomate y queso', 18000, 'Hamburguesas'),
-(5, 'Burger BBQ', 'Carne con salsa BBQ y cebolla caramelizada', 22000, 'Hamburguesas');
+DELIMITER //
+
+CREATE TRIGGER IF NOT EXISTS update_restaurant_rating 
+AFTER INSERT ON reviews 
+FOR EACH ROW 
+BEGIN
+    UPDATE restaurants 
+    SET average_rating = (
+        SELECT AVG(rating) 
+        FROM reviews 
+        WHERE restaurant_id = NEW.restaurant_id
+    ),
+    total_reviews = (
+        SELECT COUNT(*) 
+        FROM reviews 
+        WHERE restaurant_id = NEW.restaurant_id
+    )
+    WHERE id = NEW.restaurant_id;
+END//
+
+CREATE TRIGGER IF NOT EXISTS update_restaurant_rating_on_update
+AFTER UPDATE ON reviews 
+FOR EACH ROW 
+BEGIN
+    UPDATE restaurants 
+    SET average_rating = (
+        SELECT AVG(rating) 
+        FROM reviews 
+        WHERE restaurant_id = NEW.restaurant_id
+    ),
+    total_reviews = (
+        SELECT COUNT(*) 
+        FROM reviews 
+        WHERE restaurant_id = NEW.restaurant_id
+    )
+    WHERE id = NEW.restaurant_id;
+END//
+
+CREATE TRIGGER IF NOT EXISTS update_restaurant_rating_on_delete
+AFTER DELETE ON reviews 
+FOR EACH ROW 
+BEGIN
+    UPDATE restaurants 
+    SET average_rating = COALESCE((
+        SELECT AVG(rating) 
+        FROM reviews 
+        WHERE restaurant_id = OLD.restaurant_id
+    ), 0),
+    total_reviews = (
+        SELECT COUNT(*) 
+        FROM reviews 
+        WHERE restaurant_id = OLD.restaurant_id
+    )
+    WHERE id = OLD.restaurant_id;
+END//
+
+DELIMITER ;
