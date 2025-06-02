@@ -2,9 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middlewares/authMiddleware');
 const { body } = require('express-validator');
-const { handleValidationErrors } = require('../middleware/validation');
+const { handleValidationErrors } = require('../middlewares/validationMiddleware');
 
 // Validaciones
 const registerValidation = [
@@ -39,8 +39,8 @@ router.post('/login', loginValidation, authController.login);
 
 // Rutas protegidas
 router.post('/logout', authenticateToken, authController.logout);
-router.get('/profile', authenticateToken, authController.getProfile);
+router.get('/profile', authenticateToken, authController.profile);
 router.put('/profile', authenticateToken, authController.updateProfile);
-router.post('/refresh-token', authController.refreshToken);
+router.get('/me', authenticateToken, authController.profile);
 
 module.exports = router;
