@@ -1,489 +1,402 @@
-const database = require('../config/database');
+const db = require('../config/database');
 
 class Restaurant {
-    // Crear nuevo restaurante
-    static async create(restaurantData) {
+    static async findAll(pagination = {}, filters = {}) {
         try {
-            const sql = `
-                INSERT INTO restaurants (name, description, cuisine_type, address, city, phone, email, price_range, opening_hours)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            let query = `
+                SELECT r.*, 
+                       COALESCE(AVG(rv.rating), 0) as average_rating,
+                       COUNT(rv.id) as total_reviews
+                FROM restaurantes r
+                LEFT JOIN resenas rv ON r.id = rv.restaurante_id
+                WHERE 1=1
             `;
-            
-            const result = await database.query(sql, [
-                restaurantData.name,
-                restaurantData.description,
-                restaurantData.cuisine_type,
-                restaurantData.address,
-                restaurantData.city,
-                restaurantData.phone,
-                restaurantData.email,
-                restaurantData.price_range,
-                JSON.stringify(restaurantData.opening_hours)
-            ]);
 
-            return result.insertId;
-        } catch (error) {
-            console.error('Error creando restaurante:', error);
-            throw error;
-        }
-    }
+            const params = [];
 
-    // Buscar restaurante por ID
-    static async findById(id) {
-        try {
-            const sql = `
-                SELECT id, name, description, cuisine_type, address, city, phone, email, 
-                       price_range, opening_hours, average_rating, total_reviews, created_at, updated_at
-                FROM restaurants 
-                WHERE id = ?
-            `;
-            
-            const result = await database.query(sql, [id]);
-            
-            if (result.length === 0) {
-                return null;
+            if (filters.search) {
+                query += ` AND (r.nombre LIKE ? OR r.descripcion LIKE ?)`;
+                params.push(`%${filters.search}%`, `%${filters.search}%`);
             }
-
-            const restaurant = result[0];
-            // Parsear opening_hours JSON
-            if (restaurant.opening_hours) {
-                try {
-                    restaurant.opening_hours = JSON.parse(restaurant.opening_hours);
-                } catch (e) {
-                    restaurant.opening_hours = {};
-                }
-            } else {
-                restaurant.opening_hours = {};
-            }
-
-            return restaurant;
-        } catch (error) {
-            console.error('Error buscando restaurante por ID:', error);
-            throw error;
-        }
-    }
-
-    // Obtener todos los restaurantes con filtros
-    static async findAll(filters = {}, pagination = {}, sorting = {}) {
-        try {
-            let whereClause = '';
-            const whereParams = [];
-
-            // Construir filtros
-            const conditions = [];
 
             if (filters.cuisine_type) {
-                conditions.push('cuisine_type = ?');
-                whereParams.push(filters.cuisine_type);
+                query += ` AND r.tipo_cocina = ?`;
+                params.push(filters.cuisine_type);
             }
 
             if (filters.city) {
-                conditions.push('city = ?');
-                whereParams.push(filters.city);
+                query += ` AND r.ciudad = ?`;
+                params.push(filters.city);
             }
 
             if (filters.price_range) {
-                conditions.push('price_range = ?');
-                whereParams.push(filters.price_range);
+                query += ` AND r.rango_precio = ?`;
+                params.push(filters.price_range);
             }
+
+            query += ` GROUP BY r.id`;
 
             if (filters.min_rating) {
-                conditions.push('average_rating >= ?');
-                whereParams.push(filters.min_rating);
+                query += ` HAVING average_rating >= ?`;
+                params.push(filters.min_rating);
             }
 
-            if (filters.search) {
-                conditions.push('(name LIKE ? OR description LIKE ? OR cuisine_type LIKE ?)');
-                const searchTerm = `%${filters.search}%`;
-                whereParams.push(searchTerm, searchTerm, searchTerm);
-            }
-
-            if (conditions.length > 0) {
-                whereClause = 'WHERE ' + conditions.join(' AND ');
-            }
-
-            // Consulta para contar total
-            const countSql = `SELECT COUNT(*) as total FROM restaurants ${whereClause}`;
-            const countResult = await database.query(countSql, whereParams);
-            const total = countResult[0].total;
-
-            // Construir ordenamiento
-            let orderBy = 'ORDER BY average_rating DESC';
-            const validSortFields = ['name', 'average_rating', 'total_reviews', 'created_at', 'price_range'];
-            const validSortOrders = ['ASC', 'DESC'];
-
-            if (sorting.sort_by && validSortFields.includes(sorting.sort_by)) {
-                const sortOrder = validSortOrders.includes(sorting.sort_order) ? sorting.sort_order : 'DESC';
-                orderBy = `ORDER BY ${sorting.sort_by} ${sortOrder}`;
-            }
-
-            // Consulta principal con paginación
-            let sql = `
-                SELECT id, name, description, cuisine_type, address, city, phone, email, 
-                       price_range, opening_hours, average_rating, total_reviews, created_at, updated_at
-                FROM restaurants 
-                ${whereClause}
-                ${orderBy}
-            `;
-
-            const queryParams = [...whereParams];
+            query += ` ORDER BY r.fecha_creacion DESC`;
 
             if (pagination.limit) {
-                sql += ' LIMIT ?';
-                queryParams.push(pagination.limit);
+                query += ` LIMIT ? OFFSET ?`;
+                params.push(pagination.limit, pagination.offset || 0);
             }
 
-            if (pagination.offset) {
-                sql += ' OFFSET ?';
-                queryParams.push(pagination.offset);
+            const [restaurants] = await db.execute(query, params);
+
+            let countQuery = `
+                SELECT COUNT(DISTINCT r.id) as total
+                FROM restaurantes r
+                LEFT JOIN resenas rv ON r.id = rv.restaurante_id
+                WHERE 1=1
+            `;
+
+            const countParams = [];
+
+            if (filters.search) {
+                countQuery += ` AND (r.nombre LIKE ? OR r.descripcion LIKE ?)`;
+                countParams.push(`%${filters.search}%`, `%${filters.search}%`);
             }
 
-            const restaurants = await database.query(sql, queryParams);
+            if (filters.cuisine_type) {
+                countQuery += ` AND r.tipo_cocina = ?`;
+                countParams.push(filters.cuisine_type);
+            }
 
-            // Parsear opening_hours para cada restaurante
-            restaurants.forEach(restaurant => {
-                if (restaurant.opening_hours) {
-                    try {
-                        restaurant.opening_hours = JSON.parse(restaurant.opening_hours);
-                    } catch (e) {
-                        restaurant.opening_hours = {};
-                    }
-                } else {
-                    restaurant.opening_hours = {};
-                }
-            });
+            if (filters.city) {
+                countQuery += ` AND r.ciudad = ?`;
+                countParams.push(filters.city);
+            }
 
-            return { restaurants, total };
+            if (filters.price_range) {
+                countQuery += ` AND r.rango_precio = ?`;
+                countParams.push(filters.price_range);
+            }
+
+            const [countResult] = await db.execute(countQuery, countParams);
+
+            return {
+                restaurants: restaurants.map(r => ({
+                    id: r.id,
+                    name: r.nombre,
+                    description: r.descripcion,
+                    cuisine_type: r.tipo_cocina,
+                    address: r.direccion,
+                    city: r.ciudad,
+                    price_range: r.rango_precio,
+                    phone: r.telefono,
+                    email: r.email,
+                    website: r.sitio_web,
+                    average_rating: parseFloat(r.average_rating),
+                    total_reviews: parseInt(r.total_reviews),
+                    created_at: r.fecha_creacion
+                })),
+                total: countResult[0].total
+            };
+
         } catch (error) {
-            console.error('Error obteniendo restaurantes:', error);
+            console.error('Error en Restaurant.findAll:', error);
             throw error;
         }
     }
 
-    // Actualizar restaurante
-    static async update(id, updateData) {
+    static async findById(id) {
         try {
-            const fields = [];
-            const values = [];
+            const query = `
+                SELECT r.*, 
+                       COALESCE(AVG(rv.rating), 0) as average_rating,
+                       COUNT(rv.id) as total_reviews
+                FROM restaurantes r
+                LEFT JOIN resenas rv ON r.id = rv.restaurante_id
+                WHERE r.id = ?
+                GROUP BY r.id
+            `;
 
-            // Construir consulta dinámicamente
-            if (updateData.name !== undefined) {
-                fields.push('name = ?');
-                values.push(updateData.name);
-            }
-            if (updateData.description !== undefined) {
-                fields.push('description = ?');
-                values.push(updateData.description);
-            }
-            if (updateData.cuisine_type !== undefined) {
-                fields.push('cuisine_type = ?');
-                values.push(updateData.cuisine_type);
-            }
-            if (updateData.address !== undefined) {
-                fields.push('address = ?');
-                values.push(updateData.address);
-            }
-            if (updateData.city !== undefined) {
-                fields.push('city = ?');
-                values.push(updateData.city);
-            }
-            if (updateData.phone !== undefined) {
-                fields.push('phone = ?');
-                values.push(updateData.phone);
-            }
-            if (updateData.email !== undefined) {
-                fields.push('email = ?');
-                values.push(updateData.email);
-            }
-            if (updateData.price_range !== undefined) {
-                fields.push('price_range = ?');
-                values.push(updateData.price_range);
-            }
-            if (updateData.opening_hours !== undefined) {
-                fields.push('opening_hours = ?');
-                values.push(JSON.stringify(updateData.opening_hours));
+            const [rows] = await db.execute(query, [id]);
+
+            if (rows.length === 0) {
+                return null;
             }
 
-            if (fields.length === 0) {
-                throw new Error('No hay campos para actualizar');
-            }
+            const restaurant = rows[0];
+            return {
+                id: restaurant.id,
+                name: restaurant.nombre,
+                description: restaurant.descripcion,
+                cuisine_type: restaurant.tipo_cocina,
+                address: restaurant.direccion,
+                city: restaurant.ciudad,
+                price_range: restaurant.rango_precio,
+                phone: restaurant.telefono,
+                email: restaurant.email,
+                website: restaurant.sitio_web,
+                average_rating: parseFloat(restaurant.average_rating),
+                total_reviews: parseInt(restaurant.total_reviews),
+                created_at: restaurant.fecha_creacion
+            };
 
-            fields.push('updated_at = CURRENT_TIMESTAMP');
-            values.push(id);
+        } catch (error) {
+            console.error('Error en Restaurant.findById:', error);
+            throw error;
+        }
+    }
 
-            const sql = `
-                UPDATE restaurants 
-                SET ${fields.join(', ')}
+    static async create(data) {
+        try {
+            const query = `
+                INSERT INTO restaurantes (nombre, descripcion, tipo_cocina, direccion, ciudad, rango_precio, telefono, email, sitio_web)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+
+            const [result] = await db.execute(query, [
+                data.name,
+                data.description,
+                data.cuisine_type,
+                data.address,
+                data.city,
+                data.price_range,
+                data.phone,
+                data.email,
+                data.website
+            ]);
+
+            return result.insertId;
+
+        } catch (error) {
+            console.error('Error en Restaurant.create:', error);
+            throw error;
+        }
+    }
+
+    static async update(id, data) {
+        try {
+            const query = `
+                UPDATE restaurantes 
+                SET nombre = ?, descripcion = ?, tipo_cocina = ?, direccion = ?, 
+                    ciudad = ?, rango_precio = ?, telefono = ?, email = ?, sitio_web = ?
                 WHERE id = ?
             `;
 
-            await database.query(sql, values);
-            return true;
+            const [result] = await db.execute(query, [
+                data.name,
+                data.description,
+                data.cuisine_type,
+                data.address,
+                data.city,
+                data.price_range,
+                data.phone,
+                data.email,
+                data.website,
+                id
+            ]);
+
+            return result.affectedRows > 0;
+
         } catch (error) {
-            console.error('Error actualizando restaurante:', error);
+            console.error('Error en Restaurant.update:', error);
             throw error;
         }
     }
 
-    // Eliminar restaurante
     static async delete(id) {
         try {
-            const sql = 'DELETE FROM restaurants WHERE id = ?';
-            await database.query(sql, [id]);
-            return true;
+            const query = `DELETE FROM restaurantes WHERE id = ?`;
+            const [result] = await db.execute(query, [id]);
+            return result.affectedRows > 0;
+
         } catch (error) {
-            console.error('Error eliminando restaurante:', error);
+            console.error('Error en Restaurant.delete:', error);
             throw error;
         }
     }
 
-    // Obtener tipos de cocina únicos
-    static async getUniqueCuisineTypes() {
+    static async search(searchTerm, pagination = {}) {
         try {
-            const sql = `
-                SELECT DISTINCT cuisine_type 
-                FROM restaurants 
-                ORDER BY cuisine_type ASC
+            const query = `
+                SELECT r.*, 
+                       COALESCE(AVG(rv.rating), 0) as average_rating,
+                       COUNT(rv.id) as total_reviews
+                FROM restaurantes r
+                LEFT JOIN resenas rv ON r.id = rv.restaurante_id
+                WHERE r.nombre LIKE ? OR r.descripcion LIKE ? OR r.tipo_cocina LIKE ?
+                GROUP BY r.id
+                ORDER BY r.nombre
+                LIMIT ? OFFSET ?
             `;
-            
-            const result = await database.query(sql);
-            return result.map(row => row.cuisine_type);
+
+            const searchPattern = `%${searchTerm}%`;
+            const [restaurants] = await db.execute(query, [
+                searchPattern, searchPattern, searchPattern,
+                pagination.limit || 10, pagination.offset || 0
+            ]);
+
+            const countQuery = `
+                SELECT COUNT(DISTINCT r.id) as total
+                FROM restaurantes r
+                WHERE r.nombre LIKE ? OR r.descripcion LIKE ? OR r.tipo_cocina LIKE ?
+            `;
+
+            const [countResult] = await db.execute(countQuery, [searchPattern, searchPattern, searchPattern]);
+
+            return {
+                restaurants: restaurants.map(r => ({
+                    id: r.id,
+                    name: r.nombre,
+                    description: r.descripcion,
+                    cuisine_type: r.tipo_cocina,
+                    address: r.direccion,
+                    city: r.ciudad,
+                    price_range: r.rango_precio,
+                    phone: r.telefono,
+                    email: r.email,
+                    website: r.sitio_web,
+                    average_rating: parseFloat(r.average_rating),
+                    total_reviews: parseInt(r.total_reviews),
+                    created_at: r.fecha_creacion
+                })),
+                total: countResult[0].total
+            };
+
         } catch (error) {
-            console.error('Error obteniendo tipos de cocina:', error);
+            console.error('Error en Restaurant.search:', error);
             throw error;
         }
     }
 
-    // Obtener ciudades únicas
-    static async getUniqueCities() {
-        try {
-            const sql = `
-                SELECT DISTINCT city 
-                FROM restaurants 
-                ORDER BY city ASC
-            `;
-            
-            const result = await database.query(sql);
-            return result.map(row => row.city);
-        } catch (error) {
-            console.error('Error obteniendo ciudades:', error);
-            throw error;
-        }
-    }
-
-    // Obtener estadísticas generales
     static async getStats() {
         try {
-            const sql = `
+            const query = `
                 SELECT 
                     COUNT(*) as total_restaurants,
-                    AVG(average_rating) as overall_average_rating,
-                    COUNT(DISTINCT cuisine_type) as unique_cuisines,
-                    COUNT(DISTINCT city) as unique_cities,
-                    COUNT(CASE WHEN average_rating >= 4.0 THEN 1 END) as highly_rated_count,
-                    COUNT(CASE WHEN total_reviews >= 10 THEN 1 END) as well_reviewed_count
-                FROM restaurants
+                    COUNT(DISTINCT tipo_cocina) as total_cuisine_types,
+                    COUNT(DISTINCT ciudad) as total_cities,
+                    AVG(
+                        (SELECT AVG(rating) FROM resenas WHERE restaurante_id = restaurantes.id)
+                    ) as overall_average_rating
+                FROM restaurantes
             `;
 
-            const result = await database.query(sql);
-            const stats = result[0];
+            const [rows] = await db.execute(query);
+            return rows[0];
 
-            // Obtener distribución por rango de precio
-            const priceDistSql = `
-                SELECT price_range, COUNT(*) as count
-                FROM restaurants
-                GROUP BY price_range
-                ORDER BY price_range
-            `;
-            
-            const priceDistResult = await database.query(priceDistSql);
-
-            stats.price_distribution = priceDistResult;
-            return stats;
         } catch (error) {
-            console.error('Error obteniendo estadísticas:', error);
+            console.error('Error en Restaurant.getStats:', error);
             throw error;
         }
     }
 
-    // Obtener restaurantes mejor calificados
     static async getTopRated(limit = 10) {
         try {
-            const sql = `
-                SELECT id, name, description, cuisine_type, address, city, phone, email, 
-                       price_range, opening_hours, average_rating, total_reviews, created_at, updated_at
-                FROM restaurants 
-                WHERE total_reviews >= 3
+            const query = `
+                SELECT r.*, 
+                       COALESCE(AVG(rv.rating), 0) as average_rating,
+                       COUNT(rv.id) as total_reviews
+                FROM restaurantes r
+                LEFT JOIN resenas rv ON r.id = rv.restaurante_id
+                GROUP BY r.id
+                HAVING COUNT(rv.id) > 0
                 ORDER BY average_rating DESC, total_reviews DESC
                 LIMIT ?
             `;
 
-            const restaurants = await database.query(sql, [limit]);
+            const [restaurants] = await db.execute(query, [limit]);
 
-            // Parsear opening_hours para cada restaurante
-            restaurants.forEach(restaurant => {
-                if (restaurant.opening_hours) {
-                    try {
-                        restaurant.opening_hours = JSON.parse(restaurant.opening_hours);
-                    } catch (e) {
-                        restaurant.opening_hours = {};
-                    }
-                } else {
-                    restaurant.opening_hours = {};
-                }
-            });
+            return restaurants.map(r => ({
+                id: r.id,
+                name: r.nombre,
+                description: r.descripcion,
+                cuisine_type: r.tipo_cocina,
+                address: r.direccion,
+                city: r.ciudad,
+                price_range: r.rango_precio,
+                phone: r.telefono,
+                email: r.email,
+                website: r.sitio_web,
+                average_rating: parseFloat(r.average_rating),
+                total_reviews: parseInt(r.total_reviews),
+                created_at: r.fecha_creacion
+            }));
 
-            return restaurants;
         } catch (error) {
-            console.error('Error obteniendo restaurantes mejor calificados:', error);
+            console.error('Error en Restaurant.getTopRated:', error);
             throw error;
         }
     }
 
-    // Buscar restaurantes por proximidad de características
-    static async findSimilar(restaurantId, limit = 5) {
+    static async getCuisineTypes() {
         try {
-            // Primero obtener el restaurante base
-            const baseRestaurant = await this.findById(restaurantId);
-            if (!baseRestaurant) {
-                return [];
-            }
+            const query = `SELECT DISTINCT tipo_cocina FROM restaurantes ORDER BY tipo_cocina`;
+            const [rows] = await db.execute(query);
+            return rows.map(row => row.tipo_cocina);
 
-            const sql = `
-                SELECT id, name, description, cuisine_type, address, city, phone, email, 
-                       price_range, opening_hours, average_rating, total_reviews, created_at, updated_at
-                FROM restaurants 
-                WHERE id != ? 
-                AND (
-                    cuisine_type = ? 
-                    OR city = ? 
-                    OR price_range = ?
-                )
-                ORDER BY 
-                    (CASE WHEN cuisine_type = ? THEN 3 ELSE 0 END) +
-                    (CASE WHEN city = ? THEN 2 ELSE 0 END) +
-                    (CASE WHEN price_range = ? THEN 1 ELSE 0 END) DESC,
-                    average_rating DESC
-                LIMIT ?
+        } catch (error) {
+            console.error('Error en Restaurant.getCuisineTypes:', error);
+            throw error;
+        }
+    }
+
+    static async getCities() {
+        try {
+            const query = `SELECT DISTINCT ciudad FROM restaurantes ORDER BY ciudad`;
+            const [rows] = await db.execute(query);
+            return rows.map(row => row.ciudad);
+
+        } catch (error) {
+            console.error('Error en Restaurant.getCities:', error);
+            throw error;
+        }
+    }
+
+    static async getByPriceRange(priceRange, pagination = {}) {
+        try {
+            const query = `
+                SELECT r.*, 
+                       COALESCE(AVG(rv.rating), 0) as average_rating,
+                       COUNT(rv.id) as total_reviews
+                FROM restaurantes r
+                LEFT JOIN resenas rv ON r.id = rv.restaurante_id
+                WHERE r.rango_precio = ?
+                GROUP BY r.id
+                ORDER BY r.nombre
+                LIMIT ? OFFSET ?
             `;
 
-            const restaurants = await database.query(sql, [
-                restaurantId,
-                baseRestaurant.cuisine_type,
-                baseRestaurant.city,
-                baseRestaurant.price_range,
-                baseRestaurant.cuisine_type,
-                baseRestaurant.city,
-                baseRestaurant.price_range,
-                limit
+            const [restaurants] = await db.execute(query, [
+                priceRange,
+                pagination.limit || 10,
+                pagination.offset || 0
             ]);
 
-            // Parsear opening_hours para cada restaurante
-            restaurants.forEach(restaurant => {
-                if (restaurant.opening_hours) {
-                    try {
-                        restaurant.opening_hours = JSON.parse(restaurant.opening_hours);
-                    } catch (e) {
-                        restaurant.opening_hours = {};
-                    }
-                } else {
-                    restaurant.opening_hours = {};
-                }
-            });
+            const countQuery = `SELECT COUNT(*) as total FROM restaurantes WHERE rango_precio = ?`;
+            const [countResult] = await db.execute(countQuery, [priceRange]);
 
-            return restaurants;
+            return {
+                restaurants: restaurants.map(r => ({
+                    id: r.id,
+                    name: r.nombre,
+                    description: r.descripcion,
+                    cuisine_type: r.tipo_cocina,
+                    address: r.direccion,
+                    city: r.ciudad,
+                    price_range: r.rango_precio,
+                    phone: r.telefono,
+                    email: r.email,
+                    website: r.sitio_web,
+                    average_rating: parseFloat(r.average_rating),
+                    total_reviews: parseInt(r.total_reviews),
+                    created_at: r.fecha_creacion
+                })),
+                total: countResult[0].total
+            };
+
         } catch (error) {
-            console.error('Error encontrando restaurantes similares:', error);
-            throw error;
-        }
-    }
-
-    // Verificar si el email ya existe
-    static async emailExists(email, excludeRestaurantId = null) {
-        try {
-            let sql = 'SELECT id FROM restaurants WHERE email = ?';
-            const params = [email];
-
-            if (excludeRestaurantId) {
-                sql += ' AND id != ?';
-                params.push(excludeRestaurantId);
-            }
-
-            const result = await database.query(sql, params);
-            return result.length > 0;
-        } catch (error) {
-            console.error('Error verificando email:', error);
-            throw error;
-        }
-    }
-
-    // Obtener restaurantes por múltiples IDs
-    static async findByIds(ids) {
-        try {
-            if (!ids || ids.length === 0) {
-                return [];
-            }
-
-            const placeholders = ids.map(() => '?').join(',');
-            const sql = `
-                SELECT id, name, description, cuisine_type, address, city, phone, email, 
-                       price_range, opening_hours, average_rating, total_reviews, created_at, updated_at
-                FROM restaurants 
-                WHERE id IN (${placeholders})
-                ORDER BY average_rating DESC
-            `;
-
-            const restaurants = await database.query(sql, ids);
-
-            // Parsear opening_hours para cada restaurante
-            restaurants.forEach(restaurant => {
-                if (restaurant.opening_hours) {
-                    try {
-                        restaurant.opening_hours = JSON.parse(restaurant.opening_hours);
-                    } catch (e) {
-                        restaurant.opening_hours = {};
-                    }
-                } else {
-                    restaurant.opening_hours = {};
-                }
-            });
-
-            return restaurants;
-        } catch (error) {
-            console.error('Error obteniendo restaurantes por IDs:', error);
-            throw error;
-        }
-    }
-
-    // Obtener restaurantes recientes
-    static async getRecent(limit = 10) {
-        try {
-            const sql = `
-                SELECT id, name, description, cuisine_type, address, city, phone, email, 
-                       price_range, opening_hours, average_rating, total_reviews, created_at, updated_at
-                FROM restaurants 
-                ORDER BY created_at DESC
-                LIMIT ?
-            `;
-
-            const restaurants = await database.query(sql, [limit]);
-
-            // Parsear opening_hours para cada restaurante
-            restaurants.forEach(restaurant => {
-                if (restaurant.opening_hours) {
-                    try {
-                        restaurant.opening_hours = JSON.parse(restaurant.opening_hours);
-                    } catch (e) {
-                        restaurant.opening_hours = {};
-                    }
-                } else {
-                    restaurant.opening_hours = {};
-                }
-            });
-
-            return restaurants;
-        } catch (error) {
-            console.error('Error obteniendo restaurantes recientes:', error);
+            console.error('Error en Restaurant.getByPriceRange:', error);
             throw error;
         }
     }

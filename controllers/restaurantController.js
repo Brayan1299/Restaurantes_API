@@ -1,3 +1,4 @@
+
 const Restaurant = require('../models/Restaurant');
 const { successResponse, errorResponse } = require('../utils/response');
 
@@ -107,6 +108,61 @@ class RestaurantController {
         }
     }
 
+    async search(req, res) {
+        try {
+            const { q, page = 1, limit = 10 } = req.query;
+            
+            if (!q) {
+                return errorResponse(res, 'Término de búsqueda requerido', 400);
+            }
+
+            const pagination = {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                offset: (parseInt(page) - 1) * parseInt(limit)
+            };
+
+            const result = await Restaurant.search(q, pagination);
+
+            return successResponse(res, {
+                restaurants: result.restaurants,
+                pagination: {
+                    current_page: pagination.page,
+                    total_pages: Math.ceil(result.total / pagination.limit),
+                    total_items: result.total,
+                    items_per_page: pagination.limit
+                }
+            }, 'Búsqueda completada exitosamente');
+
+        } catch (error) {
+            console.error('Error en búsqueda:', error);
+            return errorResponse(res, 'Error interno del servidor', 500);
+        }
+    }
+
+    async getStats(req, res) {
+        try {
+            const stats = await Restaurant.getStats();
+            return successResponse(res, { stats }, 'Estadísticas obtenidas exitosamente');
+
+        } catch (error) {
+            console.error('Error obteniendo estadísticas:', error);
+            return errorResponse(res, 'Error interno del servidor', 500);
+        }
+    }
+
+    async getTopRated(req, res) {
+        try {
+            const { limit = 10 } = req.query;
+            const restaurants = await Restaurant.getTopRated(parseInt(limit));
+            return successResponse(res, { restaurants }, 'Restaurantes mejor calificados obtenidos exitosamente');
+
+        } catch (error) {
+            console.error('Error obteniendo restaurantes mejor calificados:', error);
+            return errorResponse(res, 'Error interno del servidor', 500);
+        }
+    }
+
     async getCuisineTypes(req, res) {
         try {
             const cuisineTypes = await Restaurant.getCuisineTypes();
@@ -125,6 +181,35 @@ class RestaurantController {
 
         } catch (error) {
             console.error('Error obteniendo ciudades:', error);
+            return errorResponse(res, 'Error interno del servidor', 500);
+        }
+    }
+
+    async getByPriceRange(req, res) {
+        try {
+            const { price_range } = req.params;
+            const { page = 1, limit = 10 } = req.query;
+
+            const pagination = {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                offset: (parseInt(page) - 1) * parseInt(limit)
+            };
+
+            const result = await Restaurant.getByPriceRange(price_range, pagination);
+
+            return successResponse(res, {
+                restaurants: result.restaurants,
+                pagination: {
+                    current_page: pagination.page,
+                    total_pages: Math.ceil(result.total / pagination.limit),
+                    total_items: result.total,
+                    items_per_page: pagination.limit
+                }
+            }, `Restaurantes con rango de precio ${price_range} obtenidos exitosamente`);
+
+        } catch (error) {
+            console.error('Error obteniendo restaurantes por rango de precio:', error);
             return errorResponse(res, 'Error interno del servidor', 500);
         }
     }
