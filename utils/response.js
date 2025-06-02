@@ -1,64 +1,85 @@
-/**
- * Utilidades para manejo consistente de respuestas de la API
- */
-
-// Estructura estándar de respuesta exitosa
-const successResponse = (res, data = null, message = 'Operación exitosa', statusCode = 200, meta = {}) => {
+// Respuesta de éxito
+const successResponse = (res, data = null, message = 'Operación exitosa', statusCode = 200) => {
     const response = {
         success: true,
         message,
-        data,
-        timestamp: new Date().toISOString(),
-        ...meta
+        timestamp: new Date().toISOString()
     };
 
-    return res.status(statusCode).json(response);
-};
-
-// Estructura estándar de respuesta de error
-const errorResponse = (res, message = 'Error interno del servidor', statusCode = 500, details = null) => {
-    const response = {
-        success: false,
-        message,
-        timestamp: new Date().toISOString(),
-        error: {
-            code: statusCode,
-            details
-        }
-    };
-
-    // Solo incluir stack trace en desarrollo
-    if (process.env.NODE_ENV === 'development' && details && details.stack) {
-        response.error.stack = details.stack;
+    if (data !== null) {
+        response.data = data;
     }
 
     return res.status(statusCode).json(response);
 };
 
-// Respuesta para recursos no encontrados
+// Respuesta de error
+const errorResponse = (res, message = 'Error interno del servidor', statusCode = 500, errors = null) => {
+    const response = {
+        success: false,
+        message,
+        timestamp: new Date().toISOString()
+    };
+
+    if (errors) {
+        response.errors = errors;
+    }
+
+    // En desarrollo, incluir más detalles del error
+    if (process.env.NODE_ENV === 'development' && statusCode >= 500) {
+        response.details = 'Ver logs del servidor para más información';
+    }
+
+    return res.status(statusCode).json(response);
+};
+
+// Respuesta de validación con errores
+const validationErrorResponse = (res, errors, message = 'Errores de validación') => {
+    return res.status(400).json({
+        success: false,
+        message,
+        errors: errors.array ? errors.array() : errors,
+        timestamp: new Date().toISOString()
+    });
+};
+
+// Respuesta paginada
+const paginatedResponse = (res, data, total, page = 1, limit = 10, message = 'Datos obtenidos exitosamente') => {
+    const totalPages = Math.ceil(total / limit);
+
+    return res.status(200).json({
+        success: true,
+        message,
+        data,
+        pagination: {
+            current_page: parseInt(page),
+            per_page: parseInt(limit),
+            total_items: total,
+            total_pages: totalPages,
+            has_next: page < totalPages,
+            has_prev: page > 1
+        },
+        timestamp: new Date().toISOString()
+    });
+};
+
+// Respuesta no encontrado
 const notFoundResponse = (res, resource = 'Recurso') => {
     return errorResponse(res, `${resource} no encontrado`, 404);
 };
 
-// Respuesta para errores de validación
-const validationErrorResponse = (res, errors, message = 'Errores de validación') => {
-    return errorResponse(res, message, 400, {
-        validation_errors: errors
-    });
-};
-
-// Respuesta para errores de autenticación
+// Respuesta no autorizado
 const unauthorizedResponse = (res, message = 'No autorizado') => {
     return errorResponse(res, message, 401);
 };
 
-// Respuesta para errores de autorización (forbidden)
-const forbiddenResponse = (res, message = 'Acceso denegado') => {
+// Respuesta prohibido
+const forbiddenResponse = (res, message = 'Acceso prohibido') => {
     return errorResponse(res, message, 403);
 };
 
-// Respuesta para conflictos (datos duplicados, etc.)
-const conflictResponse = (res, message = 'Conflicto con datos existentes') => {
+// Respuesta de conflicto
+const conflictResponse = (res, message = 'Conflicto en los datos') => {
     return errorResponse(res, message, 409);
 };
 
@@ -73,20 +94,6 @@ const noContentResponse = (res, message = 'Operación completada') => {
         success: true,
         message,
         timestamp: new Date().toISOString()
-    });
-};
-
-// Respuesta paginada
-const paginatedResponse = (res, data, pagination, message = 'Datos obtenidos exitosamente') => {
-    return successResponse(res, data, message, 200, {
-        pagination: {
-            current_page: pagination.page || 1,
-            per_page: pagination.limit || 10,
-            total: pagination.total || 0,
-            total_pages: Math.ceil((pagination.total || 0) / (pagination.limit || 10)),
-            has_next_page: (pagination.page || 1) < Math.ceil((pagination.total || 0) / (pagination.limit || 10)),
-            has_prev_page: (pagination.page || 1) > 1
-        }
     });
 };
 
@@ -208,14 +215,14 @@ const responseLogger = (req, res, next) => {
 module.exports = {
     successResponse,
     errorResponse,
-    notFoundResponse,
     validationErrorResponse,
+    paginatedResponse,
+    notFoundResponse,
     unauthorizedResponse,
     forbiddenResponse,
     conflictResponse,
     createdResponse,
     noContentResponse,
-    paginatedResponse,
     responseWithMeta,
     asyncHandler,
     formatDatabaseError,

@@ -1,6 +1,8 @@
+
 CREATE DATABASE IF NOT EXISTS restaurante_app;
 USE restaurante_app;
 
+-- Tabla de usuarios
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -8,10 +10,15 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
     preferences JSON,
+    role ENUM('user', 'admin', 'restaurant_owner') DEFAULT 'user',
+    last_login TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_email (email),
+    INDEX idx_role (role)
 );
 
+-- Tabla de restaurantes
 CREATE TABLE IF NOT EXISTS restaurants (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -25,31 +32,19 @@ CREATE TABLE IF NOT EXISTS restaurants (
     opening_hours JSON,
     average_rating DECIMAL(3,2) DEFAULT 0.00,
     total_reviews INT DEFAULT 0,
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_cuisine_type (cuisine_type),
     INDEX idx_city (city),
     INDEX idx_price_range (price_range),
-    INDEX idx_average_rating (average_rating)
+    INDEX idx_average_rating (average_rating),
+    INDEX idx_location (latitude, longitude)
 );
 
-CREATE TABLE IF NOT EXISTS menus (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    restaurant_id INT NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    price DECIMAL(10,2) NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    image_url VARCHAR(500),
-    available BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
-    INDEX idx_restaurant_id (restaurant_id),
-    INDEX idx_category (category),
-    INDEX idx_available (available)
-);
-
+-- Tabla de reseñas
 CREATE TABLE IF NOT EXISTS reviews (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -57,41 +52,109 @@ CREATE TABLE IF NOT EXISTS reviews (
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
     visit_date DATE,
+    is_verified BOOLEAN DEFAULT FALSE,
+    helpful_votes INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
-    INDEX idx_user_id (user_id),
-    INDEX idx_restaurant_id (restaurant_id),
-    INDEX idx_rating (rating),
-    INDEX idx_created_at (created_at),
-    UNIQUE KEY unique_user_restaurant (user_id, restaurant_id)
+    UNIQUE KEY unique_user_restaurant (user_id, restaurant_id),
+    INDEX idx_restaurant_rating (restaurant_id, rating),
+    INDEX idx_user_reviews (user_id),
+    INDEX idx_rating (rating)
 );
 
+-- Tabla de menús
+CREATE TABLE IF NOT EXISTS menus (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    restaurant_id INT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    allergens JSON,
+    nutritional_info JSON,
+    image_url VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    INDEX idx_restaurant_category (restaurant_id, category),
+    INDEX idx_price (price),
+    INDEX idx_available (is_available)
+);
+
+-- Tabla de eventos
+CREATE TABLE IF NOT EXISTS events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    restaurant_id INT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    event_date DATETIME NOT NULL,
+    price DECIMAL(10,2) DEFAULT 0.00,
+    max_capacity INT NOT NULL,
+    current_bookings INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    INDEX idx_restaurant_event (restaurant_id, event_date),
+    INDEX idx_event_date (event_date),
+    INDEX idx_active (is_active)
+);
+
+-- Tabla de tickets
 CREATE TABLE IF NOT EXISTS tickets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
-    restaurant_id INT NOT NULL,
+    event_id INT NOT NULL,
     ticket_code VARCHAR(100) UNIQUE NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
-    status ENUM('pending', 'paid', 'cancelled', 'used') DEFAULT 'pending',
+    qr_code_path VARCHAR(500),
+    quantity INT NOT NULL DEFAULT 1,
+    total_price DECIMAL(10,2) NOT NULL,
+    payment_status ENUM('pending', 'paid', 'cancelled', 'refunded') DEFAULT 'pending',
     payment_id VARCHAR(255),
-    qr_code_url VARCHAR(500),
-    expires_at TIMESTAMP NULL,
+    is_used BOOLEAN DEFAULT FALSE,
     used_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
-    INDEX idx_user_id (user_id),
-    INDEX idx_restaurant_id (restaurant_id),
-    INDEX idx_status (status),
-    INDEX idx_ticket_code (ticket_code)
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    INDEX idx_user_tickets (user_id),
+    INDEX idx_ticket_code (ticket_code),
+    INDEX idx_payment_status (payment_status)
 );
 
+-- Tabla de notificaciones
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    type ENUM('review', 'ticket', 'promotion', 'system') NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    related_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_notifications (user_id, is_read),
+    INDEX idx_type (type)
+);
+
+-- Tabla de favoritos de usuarios
+CREATE TABLE IF NOT EXISTS user_favorites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    restaurant_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_favorite (user_id, restaurant_id)
+);
+
+-- Triggers para actualizar calificaciones automáticamente
 DELIMITER $$
 
-CREATE TRIGGER update_restaurant_rating_after_insert
+CREATE TRIGGER IF NOT EXISTS update_restaurant_rating_after_insert
 AFTER INSERT ON reviews
 FOR EACH ROW
 BEGIN
@@ -110,7 +173,7 @@ BEGIN
     WHERE id = NEW.restaurant_id;
 END$$
 
-CREATE TRIGGER update_restaurant_rating_after_update
+CREATE TRIGGER IF NOT EXISTS update_restaurant_rating_after_update
 AFTER UPDATE ON reviews
 FOR EACH ROW
 BEGIN
@@ -129,7 +192,7 @@ BEGIN
     WHERE id = NEW.restaurant_id;
 END$$
 
-CREATE TRIGGER update_restaurant_rating_after_delete
+CREATE TRIGGER IF NOT EXISTS update_restaurant_rating_after_delete
 AFTER DELETE ON reviews
 FOR EACH ROW
 BEGIN
@@ -148,39 +211,57 @@ BEGIN
     WHERE id = OLD.restaurant_id;
 END$$
 
+CREATE TRIGGER IF NOT EXISTS update_event_bookings_after_ticket_insert
+AFTER INSERT ON tickets
+FOR EACH ROW
+BEGIN
+    UPDATE events 
+    SET current_bookings = (
+        SELECT COALESCE(SUM(quantity), 0)
+        FROM tickets 
+        WHERE event_id = NEW.event_id 
+        AND payment_status = 'paid'
+    )
+    WHERE id = NEW.event_id;
+END$$
+
+CREATE TRIGGER IF NOT EXISTS update_event_bookings_after_ticket_update
+AFTER UPDATE ON tickets
+FOR EACH ROW
+BEGIN
+    UPDATE events 
+    SET current_bookings = (
+        SELECT COALESCE(SUM(quantity), 0)
+        FROM tickets 
+        WHERE event_id = NEW.event_id 
+        AND payment_status = 'paid'
+    )
+    WHERE id = NEW.event_id;
+END$$
+
 DELIMITER ;
 
-INSERT IGNORE INTO menus (restaurant_id, name, description, price, category, available) VALUES
-(1, 'Wagyu Premium', 'Corte de wagyu con salsa de vino tinto y vegetales gourmet', 85.00, 'Carnes', true),
-(1, 'Langosta Thermidor', 'Langosta gratinada con salsa cremosa y hierbas finas', 95.00, 'Mariscos', true),
-(1, 'Foie Gras', 'Foie gras con compota de higo y pan brioche', 65.00, 'Entradas', true),
-(2, 'Tacos al Pastor', 'Tres tacos con carne al pastor, piña, cebolla y cilantro', 12.50, 'Tacos', true),
-(2, 'Quesadilla Oaxaca', 'Quesadilla con queso Oaxaca y champiñones', 15.00, 'Antojitos', true),
-(2, 'Pozole Rojo', 'Pozole tradicional con carne de cerdo y garnachas', 18.00, 'Sopas', true),
-(3, 'Pizza Margherita', 'Pizza clásica con tomate, mozzarella y albahaca', 16.00, 'Pizzas', true),
-(3, 'Pizza Quattro Formaggi', 'Pizza con cuatro quesos italianos', 22.00, 'Pizzas', true),
-(3, 'Lasagna Bolognesa', 'Lasagna tradicional con salsa bolognesa', 19.00, 'Pastas', true),
-(4, 'Sashimi Variado', 'Selección de pescados frescos en sashimi', 32.00, 'Sashimi', true),
-(4, 'Ramen Tonkotsu', 'Ramen con caldo de hueso de cerdo y chashu', 18.00, 'Ramen', true),
-(4, 'Tempura de Camarón', 'Camarones en tempura con salsa tentsuyu', 24.00, 'Tempura', true)
+-- Insertar datos de ejemplo
+INSERT IGNORE INTO users (name, email, password, role) VALUES 
+('Administrador', 'admin@gastroapi.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'admin'),
+('Propietario Demo', 'owner@restaurant.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'restaurant_owner'),
+('Usuario Demo', 'user@demo.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'user');
 
-INSERT IGNORE INTO restaurants (name, description, cuisine_type, address, city, phone, email, price_range, opening_hours, average_rating, total_reviews) VALUES
-('Restaurant BRABUS', 'Restaurante de alta cocina con especialidades gourmet y ambiente exclusivo', 'Gourmet', 'Avenida Principal 123', 'Ciudad de México', '+52-55-1234-5678', 'reservas@brabus.com', '$$$$', '{"lunes": "12:00-23:00", "martes": "12:00-23:00", "miercoles": "12:00-23:00", "jueves": "12:00-23:00", "viernes": "12:00-00:00", "sabado": "12:00-00:00", "domingo": "12:00-22:00"}', 4.8, 25),
-('Taco Mexicano', 'Auténtica comida mexicana con sabores tradicionales', 'Mexicana', 'Calle Reforma 456', 'Guadalajara', '+52-33-9876-5432', 'info@tacomexicano.com', '$', '{"lunes": "08:00-22:00", "martes": "08:00-22:00", "miercoles": "08:00-22:00", "jueves": "08:00-22:00", "viernes": "08:00-23:00", "sabado": "08:00-23:00", "domingo": "09:00-21:00"}', 4.2, 18),
-('Pizza Italiana', 'Pizzas artesanales con ingredientes importados de Italia', 'Italiana', 'Boulevard Roma 789', 'Monterrey', '+52-81-5555-1234', 'contacto@pizzaitaliana.com', '$$', '{"lunes": "11:00-23:00", "martes": "11:00-23:00", "miercoles": "11:00-23:00", "jueves": "11:00-23:00", "viernes": "11:00-00:00", "sabado": "11:00-00:00", "domingo": "12:00-22:00"}', 4.5, 12),
-('Sushi Zen', 'Cocina japonesa auténtica con pescado fresco importado', 'Japonesa', 'Centro Comercial Plaza Norte', 'Bogotá', '+57-1-555-0123', 'info@sushizen.com', '$$$', '{"lunes": "12:00-22:00", "martes": "12:00-22:00", "miercoles": "12:00-22:00", "jueves": "12:00-22:00", "viernes": "12:00-23:00", "sabado": "12:00-23:00", "domingo": "12:00-21:00"}', 4.7, 32),
-('Burger House', 'Las mejores hamburguesas gourmet de la ciudad', 'Americana', 'Avenida Libertador 321', 'Buenos Aires', '+54-11-4444-5555', 'contacto@burgerhouse.com', '$$', '{"lunes": "11:30-23:30", "martes": "11:30-23:30", "miercoles": "11:30-23:30", "jueves": "11:30-23:30", "viernes": "11:30-00:30", "sabado": "11:30-00:30", "domingo": "12:00-23:00"}', 4.3, 28),
-('Pasta Roma', 'Pasta fresca italiana hecha a mano todos los días', 'Italiana', 'Calle San Martín 567', 'Lima', '+51-1-999-8888', 'reservas@pastaroma.com', '$$', '{"lunes": "12:00-22:00", "martes": "12:00-22:00", "miercoles": "12:00-22:00", "jueves": "12:00-22:00", "viernes": "12:00-23:00", "sabado": "12:00-23:00", "domingo": "13:00-21:00"}', 4.6, 15),
-('El Asador', 'Carnes a la parrilla y cortes premium', 'Parrilla', 'Boulevard del Río 890', 'Medellín', '+57-4-333-2222', 'info@elasador.com', '$$$', '{"lunes": "18:00-23:00", "martes": "18:00-23:00", "miercoles": "18:00-23:00", "jueves": "18:00-23:00", "viernes": "18:00-00:00", "sabado": "18:00-00:00", "domingo": "18:00-22:00"}', 4.4, 22),
-('Café París', 'Bistró francés con ambiente romántico', 'Francesa', 'Plaza Mayor 111', 'Santiago', '+56-2-7777-6666', 'contacto@cafeparis.com', '$$$', '{"lunes": "08:00-22:00", "martes": "08:00-22:00", "miercoles": "08:00-22:00", "jueves": "08:00-22:00", "viernes": "08:00-23:00", "sabado": "09:00-23:00", "domingo": "09:00-21:00"}', 4.1, 19),
-('Mariscos del Puerto', 'Pescados y mariscos frescos del día', 'Mariscos', 'Malecón Costero 222', 'Cartagena', '+57-5-444-3333', 'info@mariscospuerto.com', '$$', '{"lunes": "11:00-22:00", "martes": "11:00-22:00", "miercoles": "11:00-22:00", "jueves": "11:00-22:00", "viernes": "11:00-23:00", "sabado": "11:00-23:00", "domingo": "11:00-21:00"}', 4.0, 14),
-('Vegetalia', 'Cocina vegetariana y vegana saludable', 'Vegetariana', 'Calle Verde 333', 'Quito', '+593-2-555-4444', 'hola@vegetalia.com', '$', '{"lunes": "08:00-21:00", "martes": "08:00-21:00", "miercoles": "08:00-21:00", "jueves": "08:00-21:00", "viernes": "08:00-22:00", "sabado": "09:00-22:00", "domingo": "09:00-20:00"}', 4.2, 11));
+INSERT IGNORE INTO restaurants (name, description, cuisine_type, address, city, phone, email, price_range, latitude, longitude) VALUES 
+('La Terraza Gourmet', 'Restaurante de alta cocina con vista panorámica de la ciudad', 'Internacional', 'Av. Principal 123, Piso 15', 'Bogotá', '+57 1 234-5678', 'info@laterraza.com', '$$$', 4.6097, -74.0817),
+('Sabores de Mi Tierra', 'Comida tradicional colombiana en ambiente familiar', 'Colombiana', 'Calle 45 #12-34', 'Medellín', '+57 4 987-6543', 'contacto@saborestierra.com', '$$', 6.2442, -75.5812),
+('Sushi Zen', 'Auténtica cocina japonesa con ingredientes frescos', 'Japonesa', 'Carrera 11 #85-42', 'Bogotá', '+57 1 555-7890', 'pedidos@sushizen.com', '$$$', 4.6751, -74.0486),
+('Pasta & Amore', 'Trattoria italiana con recetas familiares', 'Italiana', 'Zona Rosa, Local 45', 'Bogotá', '+57 1 333-4455', 'hola@pastaamore.com', '$$', 4.6533, -74.0636),
+('El Asador Criollo', 'Carnes a la parrilla y platos típicos', 'Parrilla', 'Calle 70 #8-15', 'Cali', '+57 2 222-3344', 'reservas@asadorcriollo.com', '$$$', 3.4516, -76.5320);
 
-INSERT IGNORE INTO menus (restaurant_id, name, description, price, category) VALUES
-(1, 'Filet Mignon BRABUS', 'Corte premium de res con salsa de trufa negra', 850.00, 'Carnes'),
-(1, 'Langosta Thermidor', 'Langosta fresca gratinada con queso gruyere', 1200.00, 'Mariscos'),
-(1, 'Risotto de Hongos', 'Risotto cremoso con mezcla de hongos silvestres', 450.00, 'Vegetarianos'),
-(2, 'Tacos al Pastor', 'Tres tacos de cerdo marinado con piña', 85.00, 'Tacos'),
-(2, 'Quesadillas de Flor de Calabaza', 'Quesadillas rellenas con flor de calabaza y queso oaxaca', 120.00, 'Antojitos'),
-(3, 'Pizza Margherita', 'Pizza tradicional con tomate, mozzarella y albahaca', 220.00, 'Pizzas'),
-(3, 'Pasta Carbonara', 'Pasta con huevo, pancetta y queso parmesano', 180.00, 'Pastas');
+INSERT IGNORE INTO menus (restaurant_id, category, name, description, price, allergens, nutritional_info) VALUES 
+(1, 'Entradas', 'Ceviche de Camarones', 'Camarones frescos marinados en limón con cebolla morada', 28000, '["mariscos"]', '{"calorias": 180, "proteinas": 25}'),
+(1, 'Platos Principales', 'Salmón Grillado', 'Salmón atlántico con vegetales asados', 45000, '["pescado"]', '{"calorias": 380, "proteinas": 35}'),
+(2, 'Platos Principales', 'Bandeja Paisa', 'Plato típico con frijoles, arroz, carne, chorizo y más', 32000, '[]', '{"calorias": 850, "proteinas": 45}'),
+(3, 'Entradas', 'Edamame', 'Vainas de soya cocidas con sal marina', 15000, '["soya"]', '{"calorias": 120, "proteinas": 11}'),
+(3, 'Platos Principales', 'Ramen Tonkotsu', 'Caldo de cerdo con fideos y chashu', 38000, '["huevo", "gluten"]', '{"calorias": 450, "proteinas": 25}');
+
+INSERT IGNORE INTO events (restaurant_id, name, description, event_date, price, max_capacity) VALUES 
+(1, 'Cena Maridaje', 'Cena de 5 tiempos con maridaje de vinos', '2024-02-15 19:00:00', 150000, 40),
+(2, 'Festival de Arepas', 'Degustación de arepas tradicionales', '2024-02-20 18:00:00', 25000, 100),
+(3, 'Clase de Sushi', 'Aprende a hacer sushi con nuestro chef', '2024-02-25 16:00:00', 80000, 15);
