@@ -1,5 +1,53 @@
 const { body, param, query } = require('express-validator');
 
+const validatePagination = [
+    query('page')
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage('La página debe ser un número entero positivo'),
+    query('limit')
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage('El límite debe ser un número entre 1 y 100')
+];
+
+const validateIdParam = (paramName = 'id') => [
+    param(paramName)
+        .isInt({ min: 1 })
+        .withMessage(`El ${paramName} debe ser un número entero positivo`)
+];
+
+const validateCreateReview = [
+    body('restaurant_id')
+        .notEmpty()
+        .withMessage('El ID del restaurante es requerido')
+        .isInt({ min: 1 })
+        .withMessage('El ID del restaurante debe ser un número entero positivo'),
+    
+    body('rating')
+        .notEmpty()
+        .withMessage('La calificación es requerida')
+        .isInt({ min: 1, max: 5 })
+        .withMessage('La calificación debe ser un número entre 1 y 5'),
+    
+    body('comment')
+        .optional()
+        .isLength({ max: 1000 })
+        .withMessage('El comentario no puede exceder 1000 caracteres')
+];
+
+const validateUpdateReview = [
+    body('rating')
+        .optional()
+        .isInt({ min: 1, max: 5 })
+        .withMessage('La calificación debe ser un número entre 1 y 5'),
+    
+    body('comment')
+        .optional()
+        .isLength({ max: 1000 })
+        .withMessage('El comentario no puede exceder 1000 caracteres')
+];
+
 // Validaciones para autenticación
 const validateRegister = [
     body('name')
