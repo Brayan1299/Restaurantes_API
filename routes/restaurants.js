@@ -2,9 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const restaurantController = require('../controllers/restaurantController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middlewares/authMiddleware');
 const { body } = require('express-validator');
-const { handleValidationErrors, validateIdParam, validatePagination } = require('../middleware/validation');
+const { handleValidationErrors, validateIdParam, validatePagination } = require('../middlewares/validationMiddleware');
 
 const restaurantValidation = [
     body('name')
