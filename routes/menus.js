@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const menuController = require('../controllers/menuController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middlewares/authMiddleware');
 const { validateCreateMenu } = require('../utils/validators');
 const { handleValidationErrors } = require('../middleware/validation');
 

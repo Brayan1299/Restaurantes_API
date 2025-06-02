@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const ticketController = require('../controllers/ticketController');
-const { authenticateToken } = require('../middleware/auth');
-const { body, param } = require('express-validator');
-const { handleValidationErrors } = require('../middleware/validation');
+const { authenticateToken } = require('../middlewares/authMiddleware');
+const { handleValidationErrors } = require('../middlewares/validationMiddleware');
 
 // Middleware de autenticación para todas las rutas de tickets
 router.use(authenticateToken);

@@ -243,9 +243,9 @@ DELIMITER ;
 
 -- Insertar datos de ejemplo
 INSERT IGNORE INTO users (name, email, password, role) VALUES 
-('Administrador', 'admin@gastroapi.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'admin'),
-('Propietario Demo', 'owner@restaurant.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'restaurant_owner'),
-('Usuario Demo', 'user@demo.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'user');
+('Brayan Restaurante', 'brayan@restaurante.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'user'),
+('Brayan Prueba', 'brayanpru@restaurante.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'user'),
+('Administrador', 'admin@gastroapi.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj9kKQJqEQDy', 'admin');
 
 INSERT IGNORE INTO restaurants (name, description, cuisine_type, address, city, phone, email, price_range, latitude, longitude) VALUES 
 ('La Terraza Gourmet', 'Restaurante de alta cocina con vista panorámica de la ciudad', 'Internacional', 'Av. Principal 123, Piso 15', 'Bogotá', '+57 1 234-5678', 'info@laterraza.com', '$$$', 4.6097, -74.0817),

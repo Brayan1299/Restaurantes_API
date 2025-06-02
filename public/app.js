@@ -1,21 +1,18 @@
 const API_BASE_URL = window.location.origin + '/api';
-
 let currentUser = null;
-let currentPage = 1;
-let currentFilters = {};
 
-// Verificar autenticación al cargar la página
 document.addEventListener('DOMContentLoaded', function() {
     checkAuthStatus();
-    loadInitialData();
+    loadRestaurants();
     setupEventListeners();
 });
 
 function setupEventListeners() {
-    // Event listeners para los formularios
     const loginForm = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
     const searchInput = document.getElementById('searchInput');
+    const cuisineFilter = document.getElementById('cuisineFilter');
+    const priceFilter = document.getElementById('priceFilter');
 
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
@@ -26,16 +23,16 @@ function setupEventListeners() {
     }
 
     if (searchInput) {
-        searchInput.addEventListener('input', debounce(searchRestaurants, 300));
+        searchInput.addEventListener('input', debounce(filterRestaurants, 300));
     }
 
-    // Event listeners para filtros
-    ['cuisineFilter', 'cityFilter', 'priceFilter', 'ratingFilter'].forEach(filterId => {
-        const element = document.getElementById(filterId);
-        if (element) {
-            element.addEventListener('change', searchRestaurants);
-        }
-    });
+    if (cuisineFilter) {
+        cuisineFilter.addEventListener('change', filterRestaurants);
+    }
+
+    if (priceFilter) {
+        priceFilter.addEventListener('change', filterRestaurants);
+    }
 }
 
 async function checkAuthStatus() {
@@ -46,19 +43,48 @@ async function checkAuthStatus() {
 
         if (response.ok) {
             const data = await response.json();
-            currentUser = data.user;
-            updateUIForLoggedInUser();
+            currentUser = data.data.user;
+            updateAuthUI(true);
         } else {
-            updateUIForLoggedOutUser();
+            updateAuthUI(false);
         }
     } catch (error) {
         console.error('Error verificando autenticación:', error);
-        updateUIForLoggedOutUser();
+        updateAuthUI(false);
     }
 }
 
-async function handleLogin(event) {
-    event.preventDefault();
+function updateAuthUI(isAuthenticated) {
+    const authSection = document.getElementById('authSection');
+
+    if (isAuthenticated && currentUser) {
+        authSection.innerHTML = `
+            <div class="dropdown">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-user me-2"></i>${currentUser.name}
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" onclick="showProfile()">
+                        <i class="fas fa-user me-2"></i>Mi Perfil
+                    </a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" onclick="logout()">
+                        <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+                    </a></li>
+                </ul>
+            </div>
+        `;
+    } else {
+        authSection.innerHTML = `
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#loginModal">
+                Iniciar Sesión
+            </button>
+        `;
+    }
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
 
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
@@ -75,23 +101,22 @@ async function handleLogin(event) {
 
         const data = await response.json();
 
-        if (data.success) {
-            currentUser = data.user;
-            updateUIForLoggedInUser();
+        if (response.ok) {
+            currentUser = data.data.user;
+            updateAuthUI(true);
             closeModal('loginModal');
-            showNotification('¡Bienvenido!', 'success');
-            document.getElementById('loginForm').reset();
+            showToast('Inicio de sesión exitoso', 'success');
         } else {
-            showNotification(data.message || 'Error al iniciar sesión', 'error');
+            showToast(data.message || 'Error al iniciar sesión', 'error');
         }
     } catch (error) {
         console.error('Error en login:', error);
-        showNotification('Error de conexión', 'error');
+        showToast('Error de conexión', 'error');
     }
 }
 
-async function handleRegister(event) {
-    event.preventDefault();
+async function handleRegister(e) {
+    e.preventDefault();
 
     const name = document.getElementById('registerName').value;
     const email = document.getElementById('registerEmail').value;
@@ -109,388 +134,172 @@ async function handleRegister(event) {
 
         const data = await response.json();
 
-        if (data.success) {
-            currentUser = data.user;
-            updateUIForLoggedInUser();
+        if (response.ok) {
+            currentUser = data.data.user;
+            updateAuthUI(true);
             closeModal('registerModal');
-            showNotification('¡Registro exitoso! Bienvenido!', 'success');
-            document.getElementById('registerForm').reset();
+            showToast('Registro exitoso', 'success');
         } else {
-            showNotification(data.message || 'Error al registrarse', 'error');
+            showToast(data.message || 'Error al registrarse', 'error');
         }
     } catch (error) {
         console.error('Error en registro:', error);
-        showNotification('Error de conexión', 'error');
+        showToast('Error de conexión', 'error');
     }
 }
 
 async function logout() {
     try {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
+        const response = await fetch(`${API_BASE_URL}/auth/logout`, {
             method: 'POST',
             credentials: 'include'
         });
 
-        currentUser = null;
-        updateUIForLoggedOutUser();
-        showNotification('Sesión cerrada correctamente', 'success');
+        if (response.ok) {
+            currentUser = null;
+            updateAuthUI(false);
+            showToast('Sesión cerrada exitosamente', 'success');
+        }
     } catch (error) {
         console.error('Error en logout:', error);
-        showNotification('Error al cerrar sesión', 'error');
+        showToast('Error al cerrar sesión', 'error');
     }
 }
 
-function updateUIForLoggedInUser() {
-    document.getElementById('loginNav').style.display = 'none';
-    document.getElementById('registerNav').style.display = 'none';
-    document.getElementById('userNav').style.display = 'block';
-    document.getElementById('userName').textContent = currentUser.name;
-}
-
-function updateUIForLoggedOutUser() {
-    document.getElementById('loginNav').style.display = 'block';
-    document.getElementById('registerNav').style.display = 'block';
-    document.getElementById('userNav').style.display = 'none';
-}
-
-function showLoginModal() {
-    const modal = new bootstrap.Modal(document.getElementById('loginModal'));
-    modal.show();
-}
-
-function showRegisterModal() {
-    const modal = new bootstrap.Modal(document.getElementById('registerModal'));
-    modal.show();
-}
-
-function closeModal(modalId) {
-    const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
-    if (modal) {
-        modal.hide();
-    }
-}
-
-async function loadInitialData() {
+async function loadRestaurants() {
     try {
-        await Promise.all([
-            loadCuisineTypes(),
-            loadCities(),
-            loadFeaturedRestaurants()
-        ]);
-    } catch (error) {
-        console.error('Error cargando datos iniciales:', error);
-    }
-}
-
-async function loadCuisineTypes() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/restaurants/cuisine-types`);
-        if (response.ok) {
-            const data = await response.json();
-            populateSelect('cuisineFilter', data.cuisineTypes, 'cuisine_type', 'cuisine_type');
-        }
-    } catch (error) {
-        console.error('Error cargando tipos de cocina:', error);
-    }
-}
-
-async function loadCities() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/restaurants/cities`);
-        if (response.ok) {
-            const data = await response.json();
-            populateSelect('cityFilter', data.cities, 'city', 'city');
-        }
-    } catch (error) {
-        console.error('Error cargando ciudades:', error);
-    }
-}
-
-async function loadFeaturedRestaurants() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/restaurants?limit=6`);
-        if (response.ok) {
-            const data = await response.json();
-            displayRestaurants(data.restaurants);
-        }
-    } catch (error) {
-        console.error('Error cargando restaurantes destacados:', error);
-    }
-}
-
-function populateSelect(selectId, options, valueField, textField) {
-    const select = document.getElementById(selectId);
-    if (!select) return;
-
-    // Limpiar opciones existentes (excepto la primera)
-    while (select.children.length > 1) {
-        select.removeChild(select.lastChild);
-    }
-
-    options.forEach(option => {
-        const optionElement = document.createElement('option');
-        optionElement.value = option[valueField];
-        optionElement.textContent = option[textField];
-        select.appendChild(optionElement);
-    });
-}
-
-async function searchRestaurants() {
-    const searchInput = document.getElementById('searchInput');
-    const cuisineFilter = document.getElementById('cuisineFilter');
-    const cityFilter = document.getElementById('cityFilter');
-    const priceFilter = document.getElementById('priceFilter');
-    const ratingFilter = document.getElementById('ratingFilter');
-
-    const filters = {
-        search: searchInput ? searchInput.value : '',
-        cuisine_type: cuisineFilter ? cuisineFilter.value : '',
-        city: cityFilter ? cityFilter.value : '',
-        price_range: priceFilter ? priceFilter.value : '',
-        min_rating: ratingFilter ? ratingFilter.value : ''
-    };
-
-    // Remover filtros vacíos
-    Object.keys(filters).forEach(key => {
-        if (!filters[key]) delete filters[key];
-    });
-
-    currentFilters = filters;
-    currentPage = 1;
-
-    showLoading(true);
-
-    try {
-        const queryParams = new URLSearchParams(filters);
-        const response = await fetch(`${API_BASE_URL}/restaurants/search?${queryParams}`);
+        const response = await fetch(`${API_BASE_URL}/restaurants`);
 
         if (response.ok) {
             const data = await response.json();
-            displayRestaurants(data.restaurants);
+            displayRestaurants(data.data || []);
         } else {
-            showNotification('Error buscando restaurantes', 'error');
+            displayRestaurants([]);
+            showToast('Error cargando restaurantes', 'error');
         }
     } catch (error) {
-        console.error('Error en búsqueda:', error);
-        showNotification('Error de conexión', 'error');
-    } finally {
-        showLoading(false);
+        console.error('Error cargando restaurantes:', error);
+        displayRestaurants([]);
+        showToast('Error de conexión', 'error');
     }
 }
 
 function displayRestaurants(restaurants) {
-    const container = document.getElementById('restaurantResults');
-    if (!container) return;
+    const container = document.getElementById('restaurantsContainer');
 
     if (!restaurants || restaurants.length === 0) {
         container.innerHTML = `
             <div class="col-12 text-center">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    No se encontraron restaurantes con los criterios seleccionados.
+                <div class="card p-5">
+                    <i class="fas fa-utensils fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No hay restaurantes disponibles</h4>
+                    <p class="text-muted">Intenta cambiar los filtros de búsqueda</p>
                 </div>
             </div>
         `;
         return;
     }
 
-    container.innerHTML = restaurants.map(restaurant => createRestaurantCard(restaurant)).join('');
-}
-
-function createRestaurantCard(restaurant) {
-    const rating = restaurant.average_rating || 0;
-    const starsHTML = generateStarsHTML(rating);
-
-    return `
-        <div class="col-md-6 col-lg-4">
-            <div class="restaurant-card" onclick="showRestaurantDetails(${restaurant.id})">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h5 class="restaurant-name mb-0">${restaurant.name}</h5>
-                    <span class="price-badge">${restaurant.price_range}</span>
-                </div>
-
-                <div class="mb-2">
-                    <span class="cuisine-tag">${restaurant.cuisine_type}</span>
-                </div>
-
-                <p class="text-muted mb-3">${restaurant.description || 'Sin descripción disponible'}</p>
-
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="rating-stars">
-                        ${starsHTML}
-                        <small class="text-muted ms-1">(${restaurant.total_reviews || 0})</small>
+    container.innerHTML = restaurants.map(restaurant => `
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card restaurant-card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-utensils text-primary me-2"></i>
+                        ${restaurant.name || 'Restaurante'}
+                    </h5>
+                    <p class="card-text">
+                        <small class="text-muted">
+                            <i class="fas fa-map-marker-alt me-1"></i>
+                            ${restaurant.city || 'Ciudad'} | 
+                            <i class="fas fa-tags me-1"></i>
+                            ${restaurant.cuisine_type || 'Cocina'}
+                        </small>
+                    </p>
+                    <p class="card-text">${restaurant.description || 'Descripción no disponible'}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="rating">
+                            ${generateStars(restaurant.average_rating || 0)}
+                            <small class="text-muted">(${restaurant.total_reviews || 0})</small>
+                        </div>
+                        <span class="badge bg-primary">${restaurant.price_range || '$'}</span>
                     </div>
                 </div>
-
-                <div class="text-muted small">
-                    <i class="fas fa-map-marker-alt me-1"></i>${restaurant.city}
+                <div class="card-footer bg-transparent">
+                    <button class="btn btn-outline-primary btn-sm w-100" 
+                            onclick="viewRestaurant(${restaurant.id})">
+                        <i class="fas fa-eye me-2"></i>Ver Detalles
+                    </button>
                 </div>
-
-                ${restaurant.phone ? `
-                    <div class="text-muted small">
-                        <i class="fas fa-phone me-1"></i>${restaurant.phone}
-                    </div>
-                ` : ''}
             </div>
         </div>
-    `;
+    `).join('');
 }
 
-function generateStarsHTML(rating) {
+function generateStars(rating) {
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 >= 0.5;
     const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
 
-    let html = '';
+    let stars = '';
     for (let i = 0; i < fullStars; i++) {
-        html += '<i class="fas fa-star"></i>';
+        stars += '<i class="fas fa-star"></i>';
     }
     if (hasHalfStar) {
-        html += '<i class="fas fa-star-half-alt"></i>';
+        stars += '<i class="fas fa-star-half-alt"></i>';
     }
     for (let i = 0; i < emptyStars; i++) {
-        html += '<i class="far fa-star"></i>';
+        stars += '<i class="far fa-star"></i>';
     }
 
-    return html;
+    return stars;
 }
 
-async function showRestaurantDetails(restaurantId) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/restaurants/${restaurantId}`);
-        if (response.ok) {
-            const data = await response.json();
-            displayRestaurantModal(data.restaurant);
-        } else {
-            showNotification('Error cargando detalles del restaurante', 'error');
-        }
-    } catch (error) {
-        console.error('Error cargando detalles:', error);
-        showNotification('Error de conexión', 'error');
-    }
+function filterRestaurants() {
+    loadRestaurants();
 }
 
-function displayRestaurantModal(restaurant) {
-    const modal = document.getElementById('restaurantModal');
-    const title = document.getElementById('restaurantModalTitle');
-    const body = document.getElementById('restaurantModalBody');
+function viewRestaurant(id) {
+    showToast(`Viendo restaurante ID: ${id}`, 'info');
+}
 
-    title.textContent = restaurant.name;
+function showRegisterModal() {
+    closeModal('loginModal');
+    setTimeout(() => {
+        const registerModal = new bootstrap.Modal(document.getElementById('registerModal'));
+        registerModal.show();
+    }, 300);
+}
 
-    const rating = restaurant.average_rating || 0;
-    const starsHTML = generateStarsHTML(rating);
+function closeModal(modalId) {
+    const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+    if (modal) modal.hide();
+}
 
-    body.innerHTML = `
-        <div class="row">
-            <div class="col-md-8">
-                <h6>Información General</h6>
-                <p><strong>Tipo de Cocina:</strong> ${restaurant.cuisine_type}</p>
-                <p><strong>Dirección:</strong> ${restaurant.address}</p>
-                <p><strong>Ciudad:</strong> ${restaurant.city}</p>
-                <p><strong>Teléfono:</strong> ${restaurant.phone || 'No disponible'}</p>
-                <p><strong>Email:</strong> ${restaurant.email || 'No disponible'}</p>
-                <p><strong>Rango de Precio:</strong> ${restaurant.price_range}</p>
+function showToast(message, type = 'info') {
+    const toastContainer = document.querySelector('.toast-container');
+    const toastId = 'toast-' + Date.now();
 
-                <h6 class="mt-4">Descripción</h6>
-                <p>${restaurant.description || 'Sin descripción disponible'}</p>
-
-                ${restaurant.opening_hours ? `
-                    <h6 class="mt-4">Horarios</h6>
-                    <div class="opening-hours">
-                        ${formatOpeningHours(restaurant.opening_hours)}
-                    </div>
-                ` : ''}
-            </div>
-
-            <div class="col-md-4">
-                <div class="text-center">
-                    <div class="rating-display mb-3">
-                        <div class="rating-stars fs-4">
-                            ${starsHTML}
-                        </div>
-                        <div class="rating-number">
-                            ${rating.toFixed(1)} / 5.0
-                        </div>
-                        <div class="text-muted">
-                            (${restaurant.total_reviews || 0} reseñas)
-                        </div>
-                    </div>
-
-                    ${currentUser ? `
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-gold" onclick="purchaseTicket(${restaurant.id})">
-                                <i class="fas fa-ticket-alt me-2"></i>Comprar Ticket
-                            </button>
-                            <button class="btn btn-outline-secondary" onclick="writeReview(${restaurant.id})">
-                                <i class="fas fa-edit me-2"></i>Escribir Reseña
-                            </button>
-                        </div>
-                    ` : `
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Inicia sesión para comprar tickets y escribir reseñas
-                        </div>
-                    `}
+    const toastHTML = `
+        <div id="${toastId}" class="toast align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'primary'} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+                    ${message}
                 </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         </div>
     `;
 
-    const bootstrapModal = new bootstrap.Modal(modal);
-    bootstrapModal.show();
-}
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
 
-function formatOpeningHours(hours) {
-    if (typeof hours === 'string') {
-        try {
-            hours = JSON.parse(hours);
-        } catch (e) {
-            return 'Horarios no disponibles';
-        }
-    }
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
 
-    if (!hours || typeof hours !== 'object') {
-        return 'Horarios no disponibles';
-    }
-
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-
-    return days.map((day, index) => {
-        const schedule = hours[day];
-        if (schedule && schedule.open && schedule.close) {
-            return `<div><strong>${dayNames[index]}:</strong> ${schedule.open} - ${schedule.close}</div>`;
-        } else {
-            return `<div><strong>${dayNames[index]}:</strong> Cerrado</div>`;
-        }
-    }).join('');
-}
-
-function showLoading(show) {
-    const spinner = document.getElementById('loadingSpinner');
-    if (spinner) {
-        spinner.style.display = show ? 'block' : 'none';
-    }
-}
-
-function showNotification(message, type = 'info') {
-    // Crear elemento de notificación
-    const notification = document.createElement('div');
-    notification.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-
-    notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-
-    document.body.appendChild(notification);
-
-    // Auto-remove después de 5 segundos
     setTimeout(() => {
-        if (notification.parentNode) {
-            notification.remove();
-        }
+        if (toastElement) toastElement.remove();
     }, 5000);
 }
 
@@ -506,27 +315,6 @@ function debounce(func, wait) {
     };
 }
 
-function exploreRestaurants() {
-    document.getElementById('restaurants').scrollIntoView({ behavior: 'smooth' });
-}
-
-// Funciones adicionales para funcionalidades futuras
-async function showProfile() {
-    showNotification('Funcionalidad en desarrollo', 'info');
-}
-
-async function showMyTickets() {
-    showNotification('Funcionalidad en desarrollo', 'info');
-}
-
-async function showMyReviews() {
-    showNotification('Funcionalidad en desarrollo', 'info');
-}
-
-async function purchaseTicket(restaurantId) {
-    showNotification('Funcionalidad en desarrollo', 'info');
-}
-
-async function writeReview(restaurantId) {
-    showNotification('Funcionalidad en desarrollo', 'info');
-}
+window.viewRestaurant = viewRestaurant;
+window.showRegisterModal = showRegisterModal;
+window.logout = logout;
