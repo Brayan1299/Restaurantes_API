@@ -238,40 +238,7 @@ const validateUpdateRestaurant = [
         .withMessage('Horarios debe ser un objeto válido')
 ];
 
-// Validaciones para reseñas
-const validateCreateReview = [
-    body('restaurant_id')
-        .isInt({ min: 1 })
-        .withMessage('ID de restaurante debe ser un número entero positivo'),
-    body('rating')
-        .isInt({ min: 1, max: 5 })
-        .withMessage('La calificación debe ser entre 1 y 5'),
-    body('comment')
-        .optional()
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage('El comentario no puede exceder 1000 caracteres'),
-    body('visit_date')
-        .optional()
-        .isISO8601()
-        .withMessage('Fecha de visita debe ser una fecha válida')
-];
-
-const validateUpdateReview = [
-    body('rating')
-        .optional()
-        .isInt({ min: 1, max: 5 })
-        .withMessage('La calificación debe ser entre 1 y 5'),
-    body('comment')
-        .optional()
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage('El comentario no puede exceder 1000 caracteres'),
-    body('visit_date')
-        .optional()
-        .isISO8601()
-        .withMessage('Fecha de visita debe ser una fecha válida')
-];
+// Validaciones para reseñas están definidas arriba
 
 // Validaciones para elementos del menú
 const validateCreateMenuItem = [
